@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>阿昌哥的 Lo-Fi 音樂動畫產生器</title>
+  
+  <!-- Import Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tone.js v14 CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  
+  <style>
+    /* CSS Styles for beautiful premium dark interface */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #080616;
+      font-family: 'Inter', sans-serif;
+      color: #fff;
+    }
+
+    /* Screen Reader Only for SEO */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    /* UI Dashboard */
+    .ui-container {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      width: 100%;
+      max-width: 500px;
+      padding: 0 20px;
+      pointer-events: none;
+    }
+
+    .now-playing {
+      background: rgba(12, 10, 28, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 12px 24px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.7);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+      text-align: center;
+      letter-spacing: 1px;
+      transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+      font-family: 'Outfit', sans-serif;
+      width: 100%;
+      pointer-events: auto;
+    }
+
+    .now-playing.playing {
+      border-color: rgba(255, 20, 147, 0.35);
+      box-shadow: 0 8px 32px 0 rgba(255, 20, 147, 0.18);
+      color: #ff69b4;
+    }
+
+    .controls {
+      display: flex;
+      gap: 16px;
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 10px;
+      border-radius: 30px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      pointer-events: auto;
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border-radius: 20px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      font-family: 'Outfit', sans-serif;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      outline: none;
+    }
+
+    .btn-play {
+      background: linear-gradient(135deg, #ff1493, #da70d6);
+      color: white;
+      box-shadow: 0 4px 15px rgba(255, 20, 147, 0.4);
+    }
+
+    .btn-play:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 20, 147, 0.6);
+      filter: brightness(1.1);
+    }
+
+    .btn-play:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn-stop {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .btn-stop:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.18);
+      color: white;
+      transform: translateY(-2px);
+    }
+
+    .btn-stop:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Soft entry transition on load */
+    .fade-in {
+      animation: fadeIn 1.5s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body class="fade-in">
+  <h1 class="sr-only">阿昌哥的 Lo-Fi 音樂動畫產生器</h1>
+  
+  <canvas id="canvas"></canvas>
+  
+  <div class="ui-container">
+    <div class="now-playing" id="now-playing">
+      READY TO GENERATE COZY VIBES...
+    </div>
+    <div class="controls">
+      <button id="btn-play" class="btn btn-play">
+        <span>✨ 產生 30 秒循環</span>
+      </button>
+      <button id="btn-stop" class="btn btn-stop" disabled>
+        <span>⏹ 停止</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // CANVAS VISUAL ENGINE
+    // ==========================================
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    let isPlaying = false;
+    let animationFrameId = null;
+
+    // Offscreen canvas for moon cutout (to keep night sky gradient behind moon transparent)
+    const moonCanvas = document.createElement("canvas");
+    const moonCtx = moonCanvas.getContext("2d");
+    moonCanvas.width = 160;
+    moonCanvas.height = 160;
+
+    // State arrays
+    const stars = [];
+    let buildings = [];
+    const rains = [];
+    const leaves = [];
+    const dusts = [];
+
+    // Helper: random float
+    const randomRange = (min, max) => Math.random() * (max - min) + min;
+
+    // Building Class
+    class Building {
+      constructor(x, y, width, height, isCenter = false) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.isCenter = isCenter;
+        this.windows = [];
+        this.generateWindows();
+      }
+
+      generateWindows() {
+        const paddingX = 14;
+        const paddingY = 24;
+        const winWidth = 6;
+        const winHeight = 10;
+        const spacingX = 12;
+        const spacingY = 18;
+
+        const cols = Math.floor((this.width - paddingX * 2) / (winWidth + spacingX));
+        const rows = Math.floor((this.height - paddingY * 2) / (winHeight + spacingY));
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            // ~35% chance a window is lit
+            if (Math.random() > 0.65) {
+              const colors = [
+                "rgba(255, 210, 100, ", // warm gold
+                "rgba(255, 180, 80, ",  // amber
+                "rgba(240, 240, 255, "  // soft cool white
+              ];
+              this.windows.push({
+                x: this.x + paddingX + c * (winWidth + spacingX),
+                y: this.y - this.height + paddingY + r * (winHeight + spacingY),
+                width: winWidth,
+                height: winHeight,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                phase: Math.random() * Math.PI * 2,
+                speed: randomRange(0.008, 0.025)
+              });
+            }
+          }
+        }
+      }
+
+      draw(ctx) {
+        // Draw building body (silhouette)
+        ctx.fillStyle = "#0c0a1d";
+        ctx.fillRect(this.x, this.y - this.height, this.width, this.height);
+
+        // Draw windows
+        this.windows.forEach(win => {
+          // If playing, update phase for breathing effect
+          if (isPlaying) {
+            win.phase += win.speed;
+          }
+          const alpha = 0.2 + 0.65 * Math.abs(Math.sin(win.phase));
+
+          // Simulated fast window glow (faster than shadowBlur)
+          ctx.fillStyle = win.color + (alpha * 0.22) + ")";
+          ctx.fillRect(win.x - 2, win.y - 2, win.width + 4, win.height + 4);
+          
+          ctx.fillStyle = win.color + alpha + ")";
+          ctx.fillRect(win.x, win.y, win.width, win.height);
+        });
+      }
+    }
+
+    // Rain Particle
+    class RainParticle {
+      constructor() {
+        this.reset();
+        this.y = randomRange(0, canvas.height); // randomize start on load
+      }
+      reset() {
+        this.x = randomRange(-50, canvas.width);
+        this.y = -30;
+        this.length = randomRange(12, 28);
+        this.speed = randomRange(9, 15);
+        this.opacity = randomRange(0.08, 0.22);
+      }
+      update() {
+        this.y += this.speed;
+        this.x += 0.8; // wind
+        if (this.y > canvas.height || this.x > canvas.width) {
+          this.reset();
+        }
+      }
+      draw(ctx) {
+        ctx.strokeStyle = `rgba(180, 210, 255, ${this.opacity})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(this.x + 1.2, this.y + this.length);
+        ctx.stroke();
+      }
+    }
+
+    // Autumn Leaves Particle
+    class LeafParticle {
+      constructor() {
+        this.reset();
+        this.y = randomRange(0, canvas.height);
+      }
+      reset() {
+        this.x = randomRange(-30, canvas.width);
+        this.y = -30 - Math.random() * 50;
+        this.size = randomRange(5, 11);
+        this.speedY = randomRange(0.8, 1.6);
+        this.speedX = randomRange(-0.4, 0.8);
+        this.angle = randomRange(0, Math.PI * 2);
+        this.spinSpeed = randomRange(-0.02, 0.02);
+        
+        // Cozy autumn palette
+        const colors = ["#d95d39", "#f18805", "#eb5e28", "#d03939", "#8f253b"];
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+        this.opacity = randomRange(0.35, 0.7);
+      }
+      update() {
+        this.y += this.speedY;
+        this.x += this.speedX + Math.sin(this.angle) * 0.25;
+        this.angle += this.spinSpeed;
+        if (this.y > canvas.height || this.x < -30 || this.x > canvas.width + 30) {
+          this.reset();
+        }
+      }
+      draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = this.opacity;
+        
+        // Simple organic leaf path
+        ctx.beginPath();
+        ctx.moveTo(0, -this.size / 2);
+        ctx.quadraticCurveTo(this.size * 0.4, 0, 0, this.size / 2);
+        ctx.quadraticCurveTo(-this.size * 0.4, 0, 0, -this.size / 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Glowing Dust Particle
+    class DustParticle {
+      constructor() {
+        this.reset();
+        this.y = randomRange(0, canvas.height);
+      }
+      reset() {
+        this.x = randomRange(0, canvas.width);
+        this.y = randomRange(canvas.height - 50, canvas.height + 20);
+        this.size = randomRange(0.8, 2.0);
+        this.speedY = randomRange(-0.15, -0.45); // floats up
+        this.speedX = randomRange(-0.25, 0.25);
+        this.opacity = randomRange(0.2, 0.55);
+        this.phase = Math.random() * Math.PI * 2;
+        this.pulseSpeed = randomRange(0.01, 0.03);
+      }
+      update() {
+        this.y += this.speedY;
+        this.x += this.speedX;
+        this.phase += this.pulseSpeed;
+        if (this.y < -10 || this.x < -10 || this.x > canvas.width + 10) {
+          this.reset();
+          this.y = canvas.height + 10;
+        }
+      }
+      draw(ctx) {
+        const alpha = this.opacity * (0.35 + 0.65 * Math.abs(Math.sin(this.phase)));
+        ctx.fillStyle = `rgba(255, 248, 220, ${alpha})`;
+        
+        ctx.save();
+        ctx.shadowColor = "rgba(255, 248, 220, 0.75)";
+        ctx.shadowBlur = 4 * alpha;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Setup and initialization functions
+    function initStars() {
+      stars.length = 0;
+      const count = Math.floor((canvas.width * canvas.height) / 10000); // density scale
+      const maxStars = Math.min(Math.max(count, 50), 180);
+      for (let i = 0; i < maxStars; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * (canvas.height * 0.6), // stay above skyline
+          size: randomRange(0.5, 1.8),
+          phase: Math.random() * Math.PI * 2,
+          speed: randomRange(0.005, 0.015)
+        });
+      }
+    }
+
+    function generateCity() {
+      buildings = [];
+      const screenWidth = canvas.width;
+      const screenHeight = canvas.height;
+
+      // Central neon sign building (must be tallest and centered)
+      const centerWidth = Math.max(160, Math.min(220, screenWidth * 0.25));
+      const centerHeight = screenHeight * 0.52;
+      const centerX = screenWidth / 2 - centerWidth / 2;
+      const centerBuilding = new Building(centerX, screenHeight, centerWidth, centerHeight, true);
+
+      // Generate left buildings
+      let curX = centerX - 8;
+      while (curX > -150) {
+        const width = randomRange(90, 160);
+        const height = screenHeight * randomRange(0.24, 0.44); // max ~44%, ensuring center stays tallest
+        curX -= width;
+        buildings.unshift(new Building(curX, screenHeight, width, height));
+        curX -= randomRange(2, 10);
+      }
+
+      // Add center building
+      buildings.push(centerBuilding);
+
+      // Generate right buildings
+      curX = centerX + centerWidth + 8;
+      while (curX < screenWidth + 150) {
+        const width = randomRange(90, 160);
+        const height = screenHeight * randomRange(0.24, 0.44);
+        buildings.push(new Building(curX, screenHeight, width, height));
+        curX += width + randomRange(2, 10);
+      }
+    }
+
+    function initParticles() {
+      rains.length = 0;
+      leaves.length = 0;
+      dusts.length = 0;
+      
+      const rainCount = 75;
+      const leafCount = 20;
+      const dustCount = 35;
+
+      for (let i = 0; i < rainCount; i++) rains.push(new RainParticle());
+      for (let i = 0; i < leafCount; i++) leaves.push(new LeafParticle());
+      for (let i = 0; i < dustCount; i++) dusts.push(new DustParticle());
+    }
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
+      initStars();
+      generateCity();
+      initParticles();
+      
+      if (!isPlaying) {
+        drawFrame();
+      }
+    }
+    window.addEventListener("resize", resizeCanvas);
+
+    // Draw crescent moon on offscreen canvas
+    function renderOffscreenMoon() {
+      moonCtx.clearRect(0, 0, 160, 160);
+      
+      // Draw outer circle
+      moonCtx.fillStyle = "#fffce8";
+      moonCtx.beginPath();
+      moonCtx.arc(80, 80, 42, 0, Math.PI * 2);
+      moonCtx.fill();
+      
+      // Subtract inner circle to form crescent
+      moonCtx.globalCompositeOperation = "destination-out";
+      moonCtx.beginPath();
+      moonCtx.arc(95, 75, 42, 0, Math.PI * 2);
+      moonCtx.fill();
+      
+      // Reset composite operation
+      moonCtx.globalCompositeOperation = "source-over";
+    }
+
+    // Static frame drawing (idle state)
+    function drawFrame() {
+      // Background gradient
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bgGrad.addColorStop(0, "#080616"); // night sky deep
+      bgGrad.addColorStop(0.5, "#120d2d"); // twilight purple
+      bgGrad.addColorStop(1, "#211a47");   // horizon blue
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw stars (static opacity)
+      stars.forEach(star => {
+        const alpha = 0.25 + 0.65 * Math.abs(Math.sin(star.phase));
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Draw Moon
+      const moonX = canvas.width * 0.18;
+      const moonY = canvas.height * 0.18;
+      ctx.save();
+      ctx.shadowColor = "rgba(255, 252, 232, 0.45)";
+      ctx.shadowBlur = 40;
+      ctx.drawImage(moonCanvas, moonX - 80, moonY - 80);
+      ctx.restore();
+
+      // Draw Skyline
+      buildings.forEach(b => b.draw(ctx));
+
+      // Draw static neon sign backing rack
+      const centerBuilding = buildings.find(b => b.isCenter);
+      if (centerBuilding) {
+        const signX = canvas.width / 2;
+        const signY = canvas.height - centerBuilding.height - 45;
+        
+        ctx.strokeStyle = "#171526";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(signX - 50, canvas.height - centerBuilding.height);
+        ctx.lineTo(signX - 40, signY + 15);
+        ctx.moveTo(signX + 50, canvas.height - centerBuilding.height);
+        ctx.lineTo(signX + 40, signY + 15);
+        ctx.rect(signX - 60, signY - 20, 120, 45);
+        ctx.stroke();
+        
+        // Dim off-state sign text
+        ctx.fillStyle = "rgba(120, 20, 70, 0.4)";
+        ctx.font = "bold 22px 'Outfit', 'Inter', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("阿昌哥", signX, signY + 2);
+      }
+    }
+
+    // Dynamic Animation Loop
+    function animate() {
+      if (!isPlaying) return;
+
+      // Background
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bgGrad.addColorStop(0, "#080616");
+      bgGrad.addColorStop(0.5, "#120d2d");
+      bgGrad.addColorStop(1, "#211a47");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Stars (Twinkling)
+      stars.forEach(star => {
+        star.phase += star.speed;
+        const alpha = 0.2 + 0.75 * Math.abs(Math.sin(star.phase));
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Moon
+      const moonX = canvas.width * 0.18;
+      const moonY = canvas.height * 0.18;
+      ctx.save();
+      ctx.shadowColor = "rgba(255, 252, 232, 0.48)";
+      ctx.shadowBlur = 40 + Math.sin(Date.now() * 0.003) * 6; // slow moon pulse
+      ctx.drawImage(moonCanvas, moonX - 80, moonY - 80);
+      ctx.restore();
+
+      // City Skyline (breathing windows inside)
+      buildings.forEach(b => b.draw(ctx));
+
+      // Neon Sign
+      const centerBuilding = buildings.find(b => b.isCenter);
+      if (centerBuilding) {
+        const signX = canvas.width / 2;
+        const signY = canvas.height - centerBuilding.height - 45;
+
+        // Support rack
+        ctx.strokeStyle = "#171526";
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.moveTo(signX - 50, canvas.height - centerBuilding.height);
+        ctx.lineTo(signX - 40, signY + 15);
+        ctx.moveTo(signX + 50, canvas.height - centerBuilding.height);
+        ctx.lineTo(signX + 40, signY + 15);
+        ctx.rect(signX - 60, signY - 20, 120, 45);
+        ctx.stroke();
+
+        // Neon backing plate
+        ctx.fillStyle = "rgba(255, 20, 147, 0.06)";
+        ctx.fillRect(signX - 58, signY - 18, 116, 41);
+
+        // Neon sign flickering/glowing algorithm
+        const flickerTrigger = Math.random();
+        let isOff = false;
+        let dimFactor = 1.0;
+
+        if (flickerTrigger > 0.988) {
+          isOff = true; // sudden split-second shutoff
+        } else if (flickerTrigger > 0.94) {
+          dimFactor = 0.4 + Math.random() * 0.4; // slight voltage drop
+        }
+
+        ctx.font = "bold 22px 'Outfit', 'Inter', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        if (isOff) {
+          ctx.fillStyle = "rgba(100, 10, 50, 0.35)";
+          ctx.fillText("阿昌哥", signX, signY + 2);
+        } else {
+          ctx.save();
+          // Hum/vibration in shadow glow
+          const glowSize = (20 + Math.sin(Date.now() * 0.065) * 4) * dimFactor;
+          ctx.shadowColor = "rgba(255, 20, 147, 1)";
+          ctx.shadowBlur = glowSize;
+
+          // Drawing text stroke for tube outline
+          ctx.strokeStyle = "rgba(255, 20, 147, 0.9)";
+          ctx.lineWidth = 4;
+          ctx.strokeText("阿昌哥", signX, signY + 2);
+
+          // Glowing white center core
+          ctx.shadowBlur = glowSize / 2;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText("阿昌哥", signX, signY + 2);
+          ctx.restore();
+        }
+      }
+
+      // Rain Particles
+      rains.forEach(r => {
+        r.update();
+        r.draw(ctx);
+      });
+
+      // Autumn Leaves
+      leaves.forEach(l => {
+        l.update();
+        l.draw(ctx);
+      });
+
+      // Glowing Dust
+      dusts.forEach(d => {
+        d.update();
+        d.draw(ctx);
+      });
+
+      animationFrameId = requestAnimationFrame(animate);
+    }
+
+
+    // ==========================================
+    // TONE.JS GENERATIVE MUSIC ENGINE
+    // ==========================================
+    let isInitialized = false;
+
+    // Synths & FX variables
+    let polySynth, bassSynth, melodySynth;
+    let kick, snare, hihat;
+    let vinylNoise, crackleSynth;
+    let mainLoop, crackleLoop;
+
+    // Pre-computed second durations (to avoid real-time string parsing errors)
+    let secMeasure, secBeat, secHalf, secEighth, secSixteenth;
+
+    // Progression database (cozy 7th & 9th jazz chord definitions)
+    const chordDictionary = [
+      { name: "Cm9", notes: ["C3", "Eb3", "G3", "Bb3", "D4"], root: "C2" },
+      { name: "Fm9", notes: ["F2", "Ab3", "C4", "Eb4", "G4"], root: "F1" },
+      { name: "Bb13", notes: ["Bb2", "D3", "F3", "Ab3", "C4", "G4"], root: "Bb1" },
+      { name: "Ebmaj9", notes: ["Eb3", "G3", "Bb3", "D4", "F4"], root: "Eb2" },
+      { name: "Abmaj9", notes: ["Ab2", "C3", "Eb3", "G3", "Bb3"], root: "Ab1" },
+      { name: "Dm7b5", notes: ["D3", "F3", "Ab3", "C4"], root: "D2" },
+      { name: "G7b9", notes: ["G2", "B2", "D3", "F3", "Ab3"], root: "G1" },
+      { name: "Dbmaj9", notes: ["Db3", "F3", "Ab3", "C4", "Eb4"], root: "Db2" }
+    ];
+
+    const progressionTemplates = [
+      ["Cm9", "Fm9", "Bb13", "Ebmaj9", "Abmaj9"],
+      ["Abmaj9", "Dm7b5", "G7b9", "Cm9", "Fm9"],
+      ["Cm9", "Abmaj9", "Fm9", "G7b9", "Cm9"],
+      ["Fm9", "Bb13", "Ebmaj9", "Abmaj9", "Dbmaj9"],
+      ["Dm7b5", "G7b9", "Cm9", "Abmaj9", "G7b9"]
+    ];
+
+    const melodyScale = ["C4", "Eb4", "F4", "G4", "Bb4", "C5", "Eb5", "F5", "G5", "Bb5"];
+
+    function initAudioEngine() {
+      if (isInitialized) return;
+
+      // Initialize base timing durations
+      secMeasure = Tone.Time("1m").toSeconds();
+      secBeat = Tone.Time("4n").toSeconds();
+      secHalf = Tone.Time("2n").toSeconds();
+      secEighth = Tone.Time("8n").toSeconds();
+      secSixteenth = Tone.Time("16n").toSeconds();
+
+      // 1. Chords Pad (PolySynth with wobble chorus & JCReverb)
+      polySynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "triangle" },
+        envelope: {
+          attack: 0.45,
+          decay: 0.6,
+          sustain: 0.8,
+          release: 1.8
+        },
+        volume: -7 // Boosted volume
+      });
+      const chordChorus = new Tone.Chorus({
+        frequency: 1.2,
+        delayTime: 3.5,
+        depth: 0.38,
+        wet: 0.45
+      }).start();
+      const chordFilter = new Tone.Filter({
+        type: "lowpass",
+        frequency: 720
+      });
+      // Synchronous JCReverb (does not block audio context on startup)
+      const chordReverb = new Tone.JCReverb(0.68);
+      chordReverb.wet.value = 0.38;
+      
+      polySynth.chain(chordChorus, chordFilter, chordReverb, Tone.Destination);
+
+      // 2. Deep warm Bass (MonoSynth filtered)
+      bassSynth = new Tone.MonoSynth({
+        oscillator: { type: "sawtooth" },
+        envelope: {
+          attack: 0.08,
+          decay: 0.35,
+          sustain: 0.8,
+          release: 0.8
+        },
+        filter: {
+          Q: 0.8,
+          type: "lowpass",
+          frequency: 100
+        },
+        filterEnvelope: {
+          attack: 0.05,
+          decay: 0.3,
+          sustain: 0.8,
+          baseFrequency: 90,
+          octaves: 1.1,
+          exponent: 2
+        },
+        volume: -3 // Boosted volume
+      });
+      const bassFilter = new Tone.Filter({
+        type: "lowpass",
+        frequency: 120
+      });
+      bassSynth.chain(bassFilter, Tone.Destination);
+
+      // 3. Sparse Ethereal Melody (Synth with feedback delay and JCReverb)
+      melodySynth = new Tone.Synth({
+        oscillator: { type: "sine" },
+        envelope: {
+          attack: 0.16,
+          decay: 0.28,
+          sustain: 0.65,
+          release: 1.4
+        },
+        volume: -10 // Boosted volume
+      });
+      const melodyFilter = new Tone.Filter({
+        type: "lowpass",
+        frequency: 1100
+      });
+      const melodyDelay = new Tone.FeedbackDelay("6n", 0.4);
+      const melodyReverb = new Tone.JCReverb(0.72);
+      melodyReverb.wet.value = 0.5;
+
+      melodySynth.chain(melodyFilter, melodyDelay, melodyReverb, Tone.Destination);
+
+      // 4. Drum Set
+      // Kick: Subby membrane synth (requires explicit notes to sound correctly)
+      kick = new Tone.MembraneSynth({
+        envelope: {
+          attack: 0.01,
+          decay: 0.36,
+          sustain: 0,
+          release: 0.36
+        },
+        octaves: 7.5,
+        volume: 2 // Boosted volume
+      });
+      const kickFilter = new Tone.Filter({
+        type: "lowpass",
+        frequency: 160
+      });
+      kick.chain(kickFilter, Tone.Destination);
+
+      // Snare: Filtered pink noise with JCReverb
+      snare = new Tone.NoiseSynth({
+        noise: { type: "pink" },
+        envelope: {
+          attack: 0.002,
+          decay: 0.11,
+          sustain: 0,
+          release: 0.11
+        },
+        volume: -4 // Boosted volume
+      });
+      const snareFilter = new Tone.Filter({
+        type: "bandpass",
+        frequency: 1150,
+        Q: 1.8
+      });
+      const snareReverb = new Tone.JCReverb(0.4);
+      snareReverb.wet.value = 0.2;
+      snare.chain(snareFilter, snareReverb, Tone.Destination);
+
+      // Hihat: Muffled metallic ticks
+      hihat = new Tone.MetalSynth({
+        envelope: {
+          attack: 0.001,
+          decay: 0.04,
+          release: 0.04
+        },
+        resonance: 3800,
+        harmonicity: 3.1,
+        volume: -12 // Boosted volume
+      });
+      const hatFilter = new Tone.Filter({
+        type: "highpass",
+        frequency: 7200
+      });
+      const hatVol = new Tone.Volume(-4);
+      hihat.chain(hatFilter, hatVol, Tone.Destination);
+
+      // 5. Vinyl Crackle & Hiss
+      vinylNoise = new Tone.Noise("brown");
+      const vinylFilter = new Tone.Filter({
+        type: "bandpass",
+        frequency: 950,
+        Q: 1.1
+      });
+      const vinylVol = new Tone.Volume(-21); // Boosted volume
+      vinylNoise.chain(vinylFilter, vinylVol, Tone.Destination);
+
+      crackleSynth = new Tone.NoiseSynth({
+        noise: { type: "pink" },
+        envelope: {
+          attack: 0.001,
+          decay: 0.007,
+          sustain: 0,
+          release: 0.007
+        },
+        volume: -14 // Boosted volume
+      });
+      const crackleFilter = new Tone.Filter({
+        type: "bandpass",
+        frequency: 1300,
+        Q: 2.2
+      });
+      crackleSynth.chain(crackleFilter, Tone.Destination);
+
+      // Main Crackle trigger loop
+      const lofiSwing = () => (Math.random() - 0.5) * 0.016;
+      
+      crackleLoop = new Tone.Loop(time => {
+        if (Math.random() < 0.12) {
+          const crackleTime = time + lofiSwing();
+          crackleSynth.triggerAttack(crackleTime, 0.04 + Math.random() * 0.08);
+        }
+      }, "16n");
+
+      // 6. Master Generative Loop (runs every 10 measures)
+      mainLoop = new Tone.Loop(time => {
+        generateLoop(time, lofiSwing);
+      }, "10m");
+
+      isInitialized = true;
+    }
+
+    // Dynamic music generator function
+    function generateLoop(time, lofiSwing) {
+      // Select random progression template
+      const template = progressionTemplates[Math.floor(Math.random() * progressionTemplates.length)];
+      const progression = template.map(name => chordDictionary.find(c => c.name === name));
+
+      const secChord = secMeasure * 2; // 2 measures per chord
+
+      // Schedule Chords and Basslines
+      progression.forEach((chord, index) => {
+        const chordTime = time + index * secChord;
+        
+        // Play Polyphonic chord (hold for 1.5 measures)
+        polySynth.triggerAttackRelease(chord.notes, secMeasure * 1.5, chordTime, 0.45);
+
+        // Schedule visual updates synced with beat
+        Tone.Draw.schedule(() => {
+          const chordElements = progression.map((c, idx) => {
+            if (idx === index) {
+              return `<span style="color: #ff1493; text-shadow: 0 0 12px rgba(255, 20, 147, 0.8); font-weight: 600;">[ ${c.name} ]</span>`;
+            }
+            return c.name;
+          });
+          const npDiv = document.getElementById("now-playing");
+          npDiv.innerHTML = `PLAYING: ${chordElements.join(" → ")}`;
+          npDiv.classList.add("playing");
+        }, chordTime);
+
+        // Bass pattern (Root notes & occasional fifths)
+        const m1 = chordTime;
+        bassSynth.triggerAttackRelease(chord.root, secHalf, m1, 0.58);
+        if (Math.random() > 0.3) {
+          // Play fifth on beat 3 (secBeat * 3)
+          bassSynth.triggerAttackRelease(getFifth(chord.root), secEighth, m1 + secBeat * 3, 0.45);
+        }
+
+        const m2 = chordTime + secMeasure;
+        bassSynth.triggerAttackRelease(chord.root, secBeat, m2, 0.58);
+        if (Math.random() > 0.4) {
+          // Play root on beat 2 (secBeat * 2)
+          bassSynth.triggerAttackRelease(chord.root, secEighth, m2 + secBeat * 2, 0.52);
+          if (Math.random() > 0.5) {
+            // Play fifth on beat 2.5 (secBeat * 2 + secEighth)
+            bassSynth.triggerAttackRelease(getFifth(chord.root), secEighth, m2 + secBeat * 2 + secEighth, 0.45);
+          }
+        }
+      });
+
+      // Simple bass fifth helper
+      function getFifth(root) {
+        const mapping = {
+          "C2": "G2", "F1": "C2", "Bb1": "F2", "Eb2": "Bb2",
+          "Ab1": "Eb2", "D2": "A2", "G1": "D2", "Db2": "Ab2"
+        };
+        return mapping[root] || root;
+      }
+
+      // Drums Loop (Kick, Snare, Hihat with swing)
+      for (let m = 0; m < 10; m++) {
+        const mTime = time + m * secMeasure;
+
+        // Kick drum (MembraneSynth requires a pitch like "C1")
+        const kTime1 = mTime + lofiSwing();
+        kick.triggerAttackRelease("C1", secEighth, kTime1, 0.75);
+
+        if (Math.random() > 0.45) {
+          // Syncopated kick on beat 2.5
+          const kTime2 = mTime + secBeat * 2 + secEighth + lofiSwing();
+          kick.triggerAttackRelease("C1", secEighth, kTime2, 0.55);
+        } else if (Math.random() > 0.7) {
+          // Double kick on beat 2
+          const kTime2 = mTime + secBeat * 2 + lofiSwing();
+          kick.triggerAttackRelease("C1", secEighth, kTime2, 0.65);
+        }
+
+        // Snare on beat 1 (2nd beat) and beat 3 (4th beat)
+        const sTime1 = mTime + secBeat + lofiSwing();
+        snare.triggerAttackRelease(secEighth, sTime1, 0.6);
+
+        const sTime2 = mTime + secBeat * 3 + lofiSwing();
+        snare.triggerAttackRelease(secEighth, sTime2, 0.6);
+
+        // Hihat pattern (8th notes)
+        for (let i = 0; i < 8; i++) {
+          if (Math.random() > 0.15) {
+            const hTime = mTime + i * secEighth + lofiSwing();
+            const baseVol = i % 2 === 0 ? 0.42 : 0.22;
+            const velocity = baseVol + (Math.random() - 0.5) * 0.08;
+            hihat.triggerAttackRelease(secSixteenth, hTime, Math.max(0.05, velocity));
+          }
+        }
+      }
+
+      // Generative Sparse Melody
+      for (let m = 0; m < 10; m++) {
+        if (Math.random() > 0.38) {
+          const mTime = time + m * secMeasure;
+          const starts = [0, secBeat, secHalf];
+          const noteTime = mTime + starts[Math.floor(Math.random() * starts.length)];
+          const note = melodyScale[Math.floor(Math.random() * melodyScale.length)];
+          const dur = Math.random() > 0.55 ? secHalf : secBeat * 1.5;
+          
+          melodySynth.triggerAttackRelease(note, dur, noteTime, 0.26 + Math.random() * 0.18);
+
+          // Occasional double-note motif
+          if (Math.random() > 0.65) {
+            const extraTime = noteTime + secBeat;
+            const extraNote = melodyScale[Math.floor(Math.random() * melodyScale.length)];
+            melodySynth.triggerAttackRelease(extraNote, secBeat, extraTime, 0.2 + Math.random() * 0.12);
+          }
+        }
+      }
+    }
+
+    async function play() {
+      initAudioEngine();
+      isPlaying = true;
+      
+      document.getElementById("btn-play").disabled = true;
+      document.getElementById("btn-stop").disabled = false;
+
+      // Start audio timeline and warm up AudioContext
+      await Tone.start();
+      Tone.Transport.bpm.value = 80;
+      Tone.Transport.seconds = 0;
+
+      // Reschedule loops (offsetting by 0.1s to allow AudioContext setup and avoid skipped initial notes)
+      crackleLoop.start(0.1);
+      mainLoop.start(0.1);
+      vinylNoise.start();
+
+      Tone.Transport.start();
+
+      // Trigger visual loop
+      animate();
+    }
+
+    function stop() {
+      isPlaying = false;
+      cancelAnimationFrame(animationFrameId);
+      
+      document.getElementById("btn-play").disabled = false;
+      document.getElementById("btn-stop").disabled = true;
+
+      // Stop audio timeline and cancel all scheduled events
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
+
+      if (isInitialized) {
+        mainLoop.stop();
+        crackleLoop.stop();
+        vinylNoise.stop();
+
+        // Release active synthesizers to avoid hanging notes
+        [polySynth, bassSynth, melodySynth, kick, snare, hihat, crackleSynth].forEach(s => {
+          if (s.releaseAll) s.releaseAll();
+          else if (s.triggerRelease) s.triggerRelease();
+          if (s.cancel) s.cancel();
+        });
+      }
+
+      // Reset HUD
+      const npDiv = document.getElementById("now-playing");
+      npDiv.innerHTML = "READY TO GENERATE COZY VIBES...";
+      npDiv.classList.remove("playing");
+
+      // Draw initial static frame
+      drawFrame();
+    }
+
+    // Set up button listeners
+    document.getElementById("btn-play").addEventListener("click", play);
+    document.getElementById("btn-stop").addEventListener("click", stop);
+
+    // Initial setup on window load
+    window.addEventListener("DOMContentLoaded", () => {
+      renderOffscreenMoon();
+      resizeCanvas();
+    });
+  </script>
+</body>
+</html>
